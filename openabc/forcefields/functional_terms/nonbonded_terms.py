@@ -778,24 +778,27 @@ def all_smog_MJ_3spn2_explicit_ion_vdwl_hydr_elec_term(mol, force_group_sr=12, f
     
     # set elec PME
     elec_PME = mm.NonbondedForce()
+    # OpenMM has no global dielectric for PME; scaling each charge by
+    # 1/sqrt(78) makes every Coulomb pair product q_i*q_j/78.
+    pme_charge_scale = 1 / np.sqrt(78.0)
     # set per particle parameters
     for i, row in mol.atoms.iterrows():
         name = row['name']
         resname = row['resname']
         if (name == 'CA') and (resname in _amino_acids):
             if resname in _positive_amino_acids:
-                elec_PME.addParticle(1, 0, 0)
+                elec_PME.addParticle(1 * pme_charge_scale, 0, 0)
             elif resname in _negative_amino_acids:
-                elec_PME.addParticle(-1, 0, 0)
+                elec_PME.addParticle(-1 * pme_charge_scale, 0, 0)
             else:
                 elec_PME.addParticle(0, 0, 0)
         elif (resname in _dna_nucleotides) and (name in _dna_3spn2_atom_names):
             if name == 'P':
-                elec_PME.addParticle(-1, 0, 0)
+                elec_PME.addParticle(-1 * pme_charge_scale, 0, 0)
             else:
                 elec_PME.addParticle(0, 0, 0)
         elif (resname in _ions) and (name in _ions):
-            elec_PME.addParticle(_charge_dict[name], 0, 0)
+            elec_PME.addParticle(_charge_dict[name] * pme_charge_scale, 0, 0)
         else:
             sys.exit(f'Cannot recognize atom with resname {resname} and name {name}.')
     
@@ -808,6 +811,5 @@ def all_smog_MJ_3spn2_explicit_ion_vdwl_hydr_elec_term(mol, force_group_sr=12, f
     elec_PME.setForceGroup(force_group_PME)
     
     return hydr_vdwl_elec_corr, elec_PME
-
 
 
