@@ -89,6 +89,13 @@ eta2_dict = {('NA', 'P'): 0.04, ('NA', 'AA-'): 0.04,
              ('CL', 'AA+'): 0.04, ('NA', 'CL'): 0.04, 
              ('MG', 'CL'): 0.035}
 
+
+def lammps_gaussian_gamma(H, eta_nm):
+    # lxc edit: keep eta in nm for OpenMM distances, but normalize gamma with the LAMMPS Angstrom width.
+    eta_angstrom = (eta_nm * unit.nanometer).value_in_unit(unit.angstrom)
+    return H / (eta_angstrom * (2 * np.pi)**0.5)
+
+
 # distance dependent dielectric parameters
 r_D_dict = {('P', 'P'): 0.686, 
             ('NA', 'P'): 0.344, 
@@ -142,7 +149,7 @@ for p in all_pairs:
         H1 = H1_dict[p]
         mu1 = mu1_dict[p]
         eta1 = eta1_dict[p]
-        gamma1 = H1 / (eta1 * (2 * np.pi)**0.5)
+        gamma1 = lammps_gaussian_gamma(H1, eta1)
     else:
         H1 = np.nan
         mu1 = np.nan
@@ -152,7 +159,7 @@ for p in all_pairs:
         H2 = H2_dict[p]
         mu2 = mu2_dict[p]
         eta2 = eta2_dict[p]
-        gamma2 = H2 / (eta2 * (2 * np.pi)**0.5)
+        gamma2 = lammps_gaussian_gamma(H2, eta2)
     else:
         H2 = np.nan
         mu2 = np.nan
@@ -221,5 +228,3 @@ for p in ion_neutral_atom_sigma_dict:
 #print(df_param)
 df_param = df_param.fillna('N/A')
 df_param.to_csv('smog_3spn2_explicit_ion_parameters.csv', index=False)
-
-
