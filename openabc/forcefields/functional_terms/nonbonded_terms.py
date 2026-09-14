@@ -778,7 +778,7 @@ def all_smog_MJ_3spn2_explicit_ion_vdwl_hydr_elec_term(mol, force_group_sr=12, f
     
     # set elec PME
     elec_PME = mm.NonbondedForce()
-    # OpenMM has no global dielectric for PME; scaling each charge by
+    # lxc edit: OpenMM has no global dielectric for PME; scaling each charge by
     # 1/sqrt(78) makes every Coulomb pair product q_i*q_j/78.
     pme_charge_scale = 1 / np.sqrt(78.0)
     # set per particle parameters
@@ -808,8 +808,9 @@ def all_smog_MJ_3spn2_explicit_ion_vdwl_hydr_elec_term(mol, force_group_sr=12, f
     
     # set nonbonded method and force group
     elec_PME.setNonbondedMethod(elec_PME.PME)
+    # lxc edit: allow strict PME rerun comparisons against LAMMPS PPPM.
+    ewald_error_tolerance = float(os.environ.get('OPENABC_PME_EWALD_TOLERANCE', '1.0e-6'))
+    elec_PME.setEwaldErrorTolerance(ewald_error_tolerance)
     elec_PME.setForceGroup(force_group_PME)
     
     return hydr_vdwl_elec_corr, elec_PME
-
-

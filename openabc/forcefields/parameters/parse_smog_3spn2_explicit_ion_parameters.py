@@ -145,6 +145,10 @@ for p in all_pairs:
     epsilon = ion_charged_atom_epsilon_dict[p]
     sigma = ion_charged_atom_sigma_dict[p]
     cutoff_lj = 1.2
+    if (p[0] in _ions) and (p[1] in {'AA+', 'AA-'}):
+        # lxc edit: LAMMPS uses WCA cutoffs for charged protein-ion LJ while
+        # keeping hydration and distance-dependent dielectric terms active.
+        cutoff_lj = 2**(1 / 6) * sigma
     if p in H1_dict:
         H1 = H1_dict[p]
         mu1 = mu1_dict[p]
