@@ -808,6 +808,15 @@ def all_smog_MJ_3spn2_explicit_ion_vdwl_hydr_elec_term(mol, force_group_sr=12, f
     
     # set nonbonded method and force group
     elec_PME.setNonbondedMethod(elec_PME.PME)
+    # lxc edit: allow sparse, large-box simulations to move more Coulomb work
+    # into real space.  Leave this unset to retain OpenMM's native cutoff.
+    pme_cutoff_nm = os.environ.get('OPENABC_PME_CUTOFF_NM')
+    if pme_cutoff_nm is not None:
+        pme_cutoff_nm = float(pme_cutoff_nm)
+        if pme_cutoff_nm <= 0:
+            raise ValueError('OPENABC_PME_CUTOFF_NM must be positive.')
+        elec_PME.setCutoffDistance(pme_cutoff_nm * unit.nanometer)
+        print(f'Use a PME Coulomb real-space cutoff of {pme_cutoff_nm} nm.')
     # lxc edit: keep OpenMM's native tolerance for normal simulations.  Strict
     # energy comparisons can opt in to a different value, for example
     # OPENABC_PME_EWALD_TOLERANCE=1e-6.
