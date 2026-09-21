@@ -808,9 +808,12 @@ def all_smog_MJ_3spn2_explicit_ion_vdwl_hydr_elec_term(mol, force_group_sr=12, f
     
     # set nonbonded method and force group
     elec_PME.setNonbondedMethod(elec_PME.PME)
-    # lxc edit: allow strict PME rerun comparisons against LAMMPS PPPM.
-    ewald_error_tolerance = float(os.environ.get('OPENABC_PME_EWALD_TOLERANCE', '1.0e-6'))
-    elec_PME.setEwaldErrorTolerance(ewald_error_tolerance)
+    # lxc edit: keep OpenMM's native tolerance for normal simulations.  Strict
+    # energy comparisons can opt in to a different value, for example
+    # OPENABC_PME_EWALD_TOLERANCE=1e-6.
+    ewald_error_tolerance = os.environ.get('OPENABC_PME_EWALD_TOLERANCE')
+    if ewald_error_tolerance is not None:
+        elec_PME.setEwaldErrorTolerance(float(ewald_error_tolerance))
     elec_PME.setForceGroup(force_group_PME)
     
     return hydr_vdwl_elec_corr, elec_PME
