@@ -97,18 +97,20 @@ class SMOGParser(object):
         if exclude14 and hasattr(self, 'protein_dihedrals'):
             for i, row in self.protein_dihedrals.iterrows():
                 exclusions.append((int(row['a1']), int(row['a4'])))
+        if exclude14:
+            # lxc edit: removing IDR torsions must preserve ordinary 1-4 exclusions.
+            exclusions.extend(getattr(self, '_disordered_dihedral_exclusions', []))
         if exclude_native_pairs and hasattr(self, 'native_pairs'):
             for i, row in self.native_pairs.iterrows():
                 exclusions.append((int(row['a1']), int(row['a2'])))
-        exclusions = np.array(sorted(exclusions))
-        self.exclusions = pd.DataFrame(exclusions, columns=['a1', 'a2']).drop_duplicates(ignore_index=True)
+        self.exclusions = pd.DataFrame(sorted(exclusions), columns=['a1', 'a2']).drop_duplicates(ignore_index=True)
         # for using with 3SPN2, also set self.protein_exclusions
         self.protein_exclusions = self.exclusions.copy()
         
     def parse_mol(self, get_native_pairs=True, frame=0, radius=0.1, bonded_radius=0.05, cutoff=0.6, box=None, 
                   use_pbc=False, exclude12=True, exclude13=True, exclude14=True, exclude_native_pairs=True, 
                   mass_dict=_smog_amino_acid_mass_dict, charge_dict=_smog_amino_acid_charge_dict, 
-                  bonded_energy_scale=2.5):
+                  bonded_energy_scale=2.5, disordered_atoms=None):
         """
         Parse molecule.
         
@@ -157,11 +159,23 @@ class SMOGParser(object):
             Charge dictionary. 
         
         bonded_energy_scale : float or int
-            Bonded energy additional scale factor. 
+            Bonded energy additional scale factor.
+
+        disordered_atoms : iterable of int or None
+            Zero-based CA atom indices local to this parser, not PDB residue IDs.
+            Remove native pairs and their native-pair exclusions if either atom
+            is disordered, and dihedrals if any of their four atoms is disordered.
+            Bonds, angles and ordinary 1-2/1-3/1-4 exclusions are preserved,
+            subject to the exclude12/exclude13/exclude14 options. None (default)
+            or an empty iterable leaves the standard SMOG topology unchanged.
         """
         # set bonds, angles, and dihedrals
         bonds, angles, dihedrals = [], [], []
         n_atoms = len(self.atoms.index)
+        disordered_atoms = [] if disordered_atoms is None else list(disordered_atoms)
+        if any(not isinstance(i, (int, np.integer)) or isinstance(i, (bool, np.bool_))
+               or i < 0 or i >= n_atoms for i in disordered_atoms):
+            raise ValueError('disordered_atoms must contain zero-based CA atom indices in [0, n_atoms).')
         for atom1 in range(n_atoms):
             chain1 = self.atoms.loc[atom1, 'chainID']
             if atom1 < n_atoms - 1:
@@ -202,6 +216,20 @@ class SMOGParser(object):
             self.native_pairs.loc[:, 'epsilon_G'] = 1.0*bonded_energy_scale
             self.native_pairs.loc[:, 'sigma_G'] = 0.05
             self.native_pairs.loc[:, 'alpha_G'] = 1.6777216e-5*bonded_energy_scale
+        # lxc edit: match the histone-tail filtering in single_nucl/setup/sbm_scripts/
+        # single_nucl/cmd.remove_idr.sh (removeIDR_for_pairs/exclusions/dihedrals_section.py).
+        # Filter native pairs before constructing exclusions, retaining bonded special pairs.
+        self._disordered_dihedral_exclusions = []
+        if disordered_atoms:
+            for attr, columns in [('native_pairs', ['a1', 'a2']),
+                                  ('protein_dihedrals', ['a1', 'a2', 'a3', 'a4'])]:
+                if hasattr(self, attr):
+                    table = getattr(self, attr)
+                    remove = table[columns].isin(disordered_atoms).any(axis=1)
+                    if attr == 'protein_dihedrals':
+                        pairs = table.loc[remove, ['a1', 'a4']].drop_duplicates()
+                        self._disordered_dihedral_exclusions = list(map(tuple, pairs.to_numpy(dtype=int)))
+                    setattr(self, attr, table.loc[~remove].reset_index(drop=True))
         # set exclusions
         self.parse_exclusions(exclude12, exclude13, exclude14, exclude_native_pairs) 
         # set mass and charge
